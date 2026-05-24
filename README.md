@@ -6,6 +6,15 @@ Portal web em PHP para centralizar o acesso a sistemas internos com autenticacao
 
 O HubCentral organiza multiplos modulos em um unico ponto de entrada. Cada usuario enxerga apenas os sistemas autorizados, enquanto administradores podem gerenciar usuarios, acessos, sites e arquivos de cada modulo.
 
+## Como Testar
+
+para poder garantir o acesso total do Hub e garantir quais
+usuários podem acessar quais sistemas você precisa primeiro 
+fazer login com a conta de Administrador:
+
+Usuário: admin
+Senha: test1234
+
 ## Principais Recursos
 
 - Login com sessao validada no servidor
