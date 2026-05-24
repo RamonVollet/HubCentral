@@ -1,0 +1,173 @@
+=========================================================
+  HUBCENTRAL — Contexto e explicação dos arquivos PHP
+=========================================================
+
+---------------------------------------------------------
+index.php  (raiz do projeto)
+---------------------------------------------------------
+Página de LOGIN do sistema. É o ponto de entrada principal.
+
+- Processa o formulário POST de login (usuário + senha).
+- Usa find_user() e password_verify() para autenticar.
+- Se o login for válido, salva os dados do usuário em $_SESSION
+  e grava o session_id no servidor (via set_user_session_id),
+  depois redireciona para php/dashboard.php.
+- Se inválido, exibe mensagem de erro na própria página.
+- Contém link para php/register.php (criar conta).
+
+---------------------------------------------------------
+php/functions.php
+---------------------------------------------------------
+Biblioteca central do sistema. Não tem HTML, só funções PHP.
+Todos os outros PHPs fazem require_once deste arquivo.
+
+Responsabilidades:
+  CAMINHOS
+    data_dir()       → retorna o caminho da pasta data/
+    users_file()     → caminho de data/users.json
+    sites_file()     → caminho de data/sites.json
+    sessions_file()  → caminho de data/sessions.json
+
+  JSON GENÉRICO
+    load_json($file) → lê e decodifica um arquivo JSON
+    save_json($file) → salva array PHP como JSON formatado
+
+  USUÁRIOS (data/users.json)
+    load_users()               → retorna todos os usuários
+    find_user($username)       → busca um usuário pelo nome
+    username_exists($username) → verifica se nome já existe
+    add_user(...)              → cria novo usuário com senha hash
+    update_user_access(...)    → atualiza a lista de sites permitidos
+    update_user_password(...)  → troca a senha (gera novo hash)
+    remove_user($username)     → remove usuário do JSON
+
+  SITES (data/sites.json)
+    load_sites()               → retorna todos os sites cadastrados
+    add_site($name,$icon,$folder) → adiciona site ao JSON
+    update_site(...)           → edita nome/ícone/pasta; renomeia
+                                  pasta física se necessário
+    delete_site($folder)       → remove do JSON e apaga a pasta
+                                  física recursivamente
+
+  SESSÕES (data/sessions.json)
+    set_user_session_id(...)   → grava session_id do usuário logado
+    clear_user_session_id(...) → apaga session_id (logout remoto)
+    validate_user_session(...) → compara session_id para prevenir
+                                  session hijacking
+
+  INICIALIZAÇÃO
+    initialize_defaults()      → cria os JSONs vazios se não existirem
+    (chamada automaticamente ao incluir o arquivo)
+
+---------------------------------------------------------
+php/auth_check.php
+---------------------------------------------------------
+Guarda de autenticação e autorização. Incluído no topo de
+qualquer página que exija login ou permissão de site.
+
+Fluxo:
+  1. Verifica se $_SESSION['user'] existe.
+     → Se não, redireciona para /hubcentral/index.php.
+  2. Valida o session_id contra o salvo no servidor
+     (protege contra session hijacking e logout remoto).
+     → Se inválido, destrói a sessão e redireciona para login.
+  3. Se a página definiu $required_site antes do include,
+     verifica se o usuário tem esse site em seu 'access'.
+     → Admin sempre passa.
+     → Wildcard '*' concede acesso a tudo.
+     → Caso contrário, redireciona para dashboard com
+       ?access=denied.
+
+---------------------------------------------------------
+php/dashboard.php
+---------------------------------------------------------
+Dashboard principal do usuário após o login.
+
+- Carrega a lista de sites do JSON e filtra os que o usuário
+  tem permissão de ver (ou todos, se for admin).
+- Exibe um card para cada site com nome, ícone e botão "Abrir"
+  que aponta para php/site.php?site={folder}.
+- Admin vê também o botão para acessar php/admin_manage.php.
+- Link de logout para php/logout.php.
+
+---------------------------------------------------------
+php/admin_manage.php
+---------------------------------------------------------
+Painel de administração. Acesso restrito a role = 'admin'.
+
+Aba Usuários:
+  - Lista todos os usuários com seus acessos.
+  - Permite ao admin alterar a senha de qualquer usuário.
+  - Permite deletar usuários (exceto 'admin').
+  - Permite editar os sites que cada usuário pode acessar.
+
+Aba Sites:
+  - Lista os sites cadastrados em data/sites.json.
+  - Permite adicionar novo site (nome, pasta, ícone).
+  - Permite editar nome, pasta e ícone de um site existente.
+    Se a pasta mudar, renomeia fisicamente em sites/.
+  - Permite remover um site da lista (não apaga arquivos,
+    só o registro no JSON — exceto delete_site que apaga tudo).
+  - Suporta upload de imagem como ícone (valida tipo e tamanho).
+
+---------------------------------------------------------
+php/site.php
+---------------------------------------------------------
+Wrapper que carrega um sub-site dentro de um <iframe>.
+
+- Recebe o parâmetro GET ?site={folder}.
+- Valida que o valor só contém caracteres seguros (regex).
+- Define $required_site e inclui auth_check.php para checar
+  permissão do usuário naquele site específico.
+- Confirma que o site existe em data/sites.json.
+- Confirma que a pasta sites/{folder}/ existe fisicamente.
+- Busca index.php ou index.html dentro da pasta.
+- Renderiza a página com um <iframe> apontando para o arquivo
+  encontrado, adicionando ?hub_embed=1 na URL.
+- Inclui components/top_panel.php que exibe o botão de menu
+  flutuante (voltar ao dashboard, nome do usuário).
+
+---------------------------------------------------------
+php/logout.php
+---------------------------------------------------------
+Realiza o logout completo do usuário.
+
+- Chama clear_user_session_id() para invalidar a sessão no
+  servidor (permite logout remoto pelo admin).
+- Limpa $_SESSION.
+- Remove o cookie de sessão do navegador.
+- Destrói a sessão PHP.
+- Redireciona para /hubcentral/index.php.
+
+---------------------------------------------------------
+php/register.php
+---------------------------------------------------------
+Página pública de cadastro de novo usuário.
+
+- Processa o formulário POST com username, password e
+  confirmação de senha.
+- Valida campos obrigatórios, coincidência de senhas e
+  unicidade do nome de usuário.
+- Cria o usuário com role = 'user' e acesso padrão
+  apenas ao site 'laudos'.
+- Exibe mensagem de sucesso ou erros na própria página.
+- Link para voltar ao login (/hubcentral/index.php).
+
+=========================================================
+  Fluxo geral do sistema
+=========================================================
+
+  [index.php] → login → [php/dashboard.php]
+                              ↓
+                    escolhe site → [php/site.php]
+                              ↓
+                    <iframe> carrega sites/{folder}/index.php
+                              ↓
+                    top_panel flutuante (voltar ao dashboard)
+
+  [php/dashboard.php] → admin → [php/admin_manage.php]
+                                    gerencia usuários e sites
+
+  Qualquer página protegida inclui [php/auth_check.php]
+  que usa funções de [php/functions.php]
+  que lê/escreve em data/*.json
