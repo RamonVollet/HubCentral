@@ -82,8 +82,4 @@ hubcentral/
 
 ## Ambito
 
-Projeto mantido para uso interno em ambiente municipal.
-
-## Licenca
-
-Defina aqui a licenca de uso do projeto (ex.: MIT, proprietaria interna, etc.).
+Projeto para uso pessoal ou interno em ambientes admistrativos
